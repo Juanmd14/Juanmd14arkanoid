@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arkanoid JavaScript</title>
+    <style>
+        body {
+            background: url('arkanoid-game/fondo.png') repeat; 
+            background-position: center;
+            background-size: 150%;
+        }
+        canvas {
+            border: 4px solid white;
+            border-bottom: transparent;
+            margin: 0 auto;
+            display: block;
+        }
+        #monster {
+            filter: grayscale(100%); /* Aplicar filtro de desaturación al 100% */
+        }
+        img#monster {
+            filter: grayscale(100%); /* Otra forma de aplicar el filtro al monstruo */
+        }
+    </style>
+</head>
+<body>
+    <canvas></canvas>
+
+    <img hidden id="sprite" src="arkanoid-game/sprite.png" alt="Sprites Arkanoid">
+    <img hidden id="bricks" src="arkanoid-game/bricks.png" alt="Bricks Arkanoid">
+    <img hidden id="monster1" src="arkanoid-game/monstruo1.png" alt="Monstruo 1">
+    <img hidden id="monster2" src="arkanoid-game/monstruo2.png" alt="Monstruo 2">
+    <img hidden id="monster3" src="arkanoid-game/monstruo3.png" alt="Monstruo 3">
+
+    <script>
+        const canvas = document.querySelector('canvas');
+        const ctx = canvas.getContext('2d');
+        const $sprite = document.querySelector('#sprite');
+        const $bricks = document.querySelector('#bricks');
+        const $monster1 = document.querySelector('#monster1');
+        const $monster2 = document.querySelector('#monster2');
+        const $monster3 = document.querySelector('#monster3');
+
+        canvas.width = 795;
+        canvas.height = 899;
+
+        let lives = 3;
+        let counter = 0;
+        let score = 0;
+        let highscore = 0;
+        const monsterCount = 3;
+        const monsters = [];
+        const monsterImages = [$monster1, $monster2, $monster3];
+
+        function loadHighScore() {
+            const storedHighscore = localStorage.getItem('highscore');
+            if (storedHighscore !== null) {
+                highscore = parseInt(storedHighscore);
+            }
+        }
+
+        loadHighScore();
+
+        function updateHighScore() {
+            if (score > highscore) {
+                highscore = score;
+                localStorage.setItem('highscore', highscore);
+            }
+        }
+
+        for (let i = 0; i < monsterCount; i++) {
+            const randomIndex = Math.floor(Math.random() * monsterImages.length);
+            const selectedMonsterImage = monsterImages[randomIndex];
+
+            monsters.push({
+                x: Math.random() * (canvas.width - 80),
+                y: Math.random() * 100,
+                width: 80,
+                height: 80,
+                speed: 1,
+                directionX: Math.random() < 0.5 ? 1 : -1,
+                directionY: 1,
+                image: selectedMonsterImage
+            });
+
+            monsterImages.splice(randomIndex, 1);
+        }
+
+        function drawLives() {
+            for (let i = 0; i < lives; i++) {
+                ctx.drawImage(
+                    $sprite,
+                    19,
+                    100,
+                    57,
+                    20,
+                    canvas.width - 120 - (i + 1) * 30,
+                    7,
+                    28,
+                    12
+                );
+            }
+        }
+
+        const ballRadius = 4;
+
+        let x = canvas.width / 2;
+        let y = canvas.width - 30;
+        let dx = -2;
+        let dy = -3;
+
+        const paddleHeight = 12; 
+        const paddleWidth = 50;
+
+        let paddleX = (canvas.width - paddleWidth) / 2;
+        let paddleY = canvas.height - paddleHeight - 10;
+
+        let rightPressed = false;
+        let leftPressed = false;
+
+        const brickRowCount = 6;
+        const brickColumnCount = 13;
+        const brickWidth = 59.5;
+        const brickHeight = 30;
+        const brickPadding = 0;
+        const brickOffsetTop = 200;
+        const brickOffsetLeft = 10;
+        const bricks = [];
+
+        const BRICK_STATUS =  {
+            ACTIVE: 1,
+            DESTROY: 0
+        };  
+
+        for (let c = 0; c < brickColumnCount; c++) {
+            bricks[c] = [];
+            for (let r = 0; r < brickRowCount; r++) {
+                const brickX = c * (brickWidth + brickPadding) + brickOffsetLeft;
+                const brickY = r * (brickHeight + brickPadding) + brickOffsetTop;
+                const random = Math.floor(Math.random() * 8);
+                bricks[c][r] = { x: brickX, y: brickY, status: BRICK_STATUS.DESTROYED, color: random };
+            }
+        }
+
+        const PADDLE_SENSITIVITY = 8;
+
+        function drawBall()   {
+            ctx.beginPath();
+            ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawPaddle() {
+            ctx.drawImage(
+                $sprite,
+                22,
+                100,
+                paddleWidth,
+                paddleHeight,
+                paddleX,
+                paddleY,
+                paddleWidth,
+                paddleHeight
+            );
+        }
+
+        function drawBricks() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    const currentBrick = bricks[c][r];
+                    if (currentBrick.status === BRICK_STATUS.DESTROY) continue;
+
+                    const clipX = currentBrick.color * 16;
+
+                    ctx.drawImage(
+                        $bricks,
+                        clipX,
+                        0,
+                        16,
+                        8,
+                        currentBrick.x,
+                        currentBrick.y,
+                        brickWidth,
+                        brickHeight
+                    );
+                }
+            }
+        }
+
+        function drawMonsters() {
+            for (const monster of monsters) {
+                ctx.drawImage(
+                    monster.image,
+                    monster.x,
+                    monster.y,
+                    monster.width,
+                    monster.height
+                );
+            }
+        }
+
+        const CHANGE_DIRECTION_INTERVAL = 100;
+
+        function moveMonsterRandomly() {
+            const speed = 1;
+
+            for (const monster of monsters) {
+                const dx = speed * monster.directionX;
+                const dy = speed * monster.directionY;
+
+                monster.x += dx;
+                monster.y += dy;
+
+                if (monster.x + monster.width > canvas.width || monster.x < 0) {
+                    monster.directionX *= -1;
+                }
+                if (monster.y < 0) {
+                    monster.directionY = 1;
+                }
+                for (let c = 0; c < brickColumnCount; c++) {
+                    for (let r = 0; r < brickRowCount; r++) {
+                        const currentBrick = bricks[c][r];
+                        if (currentBrick.status === BRICK_STATUS.DESTROY) continue;
+
+                        if (
+                            monster.x < currentBrick.x + brickWidth &&
+                            monster.x + monster.width > currentBrick.x &&
+                            monster.y < currentBrick.y + brickHeight &&
+                            monster.y + monster.height > currentBrick.y
+                        ) {
+                            monster.directionX *= Math.random() < 0.5 ? 1 : -1;
+                            monster.directionY *= Math.random() < 0.5 ? 1 : -1;
+                            currentBrick.status = BRICK_STATUS.DESTROYED;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        function collisionDetectionWithMonster() {
+            for (const monster of monsters) {
+                if (
+                    x > monster.x &&
+                    x < monster.x + monster.width &&
+                    y > monster.y &&
+                    y < monster.y + monster.height
+                ) {
+                    dy = -dy;
+                    dx *= 2;
+                }
+            }
+        }
+
+        function collisionDetection() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    const currentBrick = bricks[c][r];
+                    if (currentBrick.status === BRICK_STATUS.DESTROY) continue;
+
+                    const isBallSameXAsBrick = x > currentBrick.x && x < currentBrick.x + brickWidth;
+                    const isBallSameYAsBrick = y > currentBrick.y && y < currentBrick.y + brickHeight;
+
+                    if (isBallSameXAsBrick && isBallSameYAsBrick) {
+                        dy = -dy;
+                        currentBrick.status = BRICK_STATUS.DESTROY;
+                        score += 10;
+                    }
+                }
+            }
+        }
+
+        function doubleSpeed() {
+            if (score > 10) {
+                const speedMultiplier = 1.0002;
+                dx *= speedMultiplier;
+                dy *= speedMultiplier;
+            }
+        }
+
+        function drawScore() {
+            ctx.font = "24px Arial";
+            ctx.fillStyle = "#FFFFFF";
+
+            const scoreText = "Puntaje: " + score;
+            const textWidth = ctx.measureText(scoreText).width;
+            const xPosition = (canvas.width - textWidth) / 11; // Centrar horizontalmente
+            ctx.fillText(scoreText, xPosition, 20);
+        }
+
+        function drawHighScore() {
+            ctx.font = "24px Arial";
+            ctx.fillStyle = "#FFFFFF";
+            const highscoreText = "Highscore: " + highscore;
+            const textWidth = ctx.measureText(highscoreText).width;
+            const xPosition = (canvas.width - textWidth) / 2 + 60;
+            const yPosition = 20; // Ajusta esta posición vertical según sea necesario
+            ctx.fillText(highscoreText, xPosition, yPosition);
+        }
+
+        function showGameOverMessage() {
+            ctx.font = "40px Arial";
+            ctx.fillStyle = "#FFFFFF";
+            ctx.textAlign = "center";
+            ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2);
+            ctx.font = "20px Arial";
+            ctx.fillText("Presiona 'Enter' para jugar de nuevo", canvas.width / 2, canvas.height / 2 + 40);
+        }
+
+        function resetGame() {
+            resetBallAndPaddle();
+            resetBricks();
+        }
+
+        function resetBallAndPaddle() {
+            x = canvas.width / 2;
+            y = canvas.width - 30;
+            dx = -2;
+            dy = -3;
+            paddleX = (canvas.width - paddleWidth) / 2;
+        }
+
+        function resetBricks() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    bricks[c][r].status = BRICK_STATUS.DESTROYED;
+                }
+            }
+        }
+
+        function ballMovement() {
+            if (gameStarted) { // Verifica si el juego ha comenzado
+                if (y + dy > canvas.height - ballRadius) { // Si la pelota llega al borde inferior
+                    lives--; // Decrementa las vidas
+                    if (lives === 0) { // Si no quedan vidas
+                        showGameOverMessage(); // Muestra el mensaje de Game Over
+                        return;
+                    } else { // Si quedan vidas
+                        resetBallAndPaddle(); // Reinicia la posición de la pelota y la paleta
+                    }
+                }
+
+                if (
+                    x + dx > canvas.width - ballRadius ||
+                    x + dx < ballRadius
+                ) {
+                    dx = -dx;
+                }
+
+                if (y + dy < ballRadius) {
+                    dy = -dy;
+                }
+
+                if (
+                    y + dy > canvas.height - ballRadius - paddleHeight &&
+                    x > paddleX &&
+                    x < paddleX + paddleWidth
+                ) {
+                    dy = -dy;
+                }
+
+                x += dx;
+                y += dy;
+            }
+        }
+
+        function paddleMovement() {
+            if (rightPressed && paddleX < canvas.width - paddleWidth) {
+                paddleX += PADDLE_SENSITIVITY;
+            } else if (leftPressed && paddleX > 0 ) {
+                paddleX -= PADDLE_SENSITIVITY;
+            }
+        }
+
+        function cleanCanvas(){
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function initEvents () {
+            document.addEventListener('keydown', keyDownHandler);
+            document.addEventListener('keyup', keyUpHandler);
+        }
+
+        function keyDownHandler(event) {
+            if (event.key === 'Right' || event.key === 'ArrowRight') {
+                rightPressed = true;
+            } else if (event.key === 'Left' || event.key === 'ArrowLeft') {
+                leftPressed = true;
+            }
+        }
+
+        function keyUpHandler(event) {
+            if (event.key === 'Right' || event.key === 'ArrowRight') {
+                rightPressed = false;
+            } else if (event.key === 'Left' || event.key === 'ArrowLeft') {
+                leftPressed = false;
+            }
+        }
+
+        let gameStarted = false; // Variable para indicar si el juego está en curso
+
+        function startGame() {
+            gameStarted = true; // Indica que el juego está en curso
+
+            resetGame();
+            initEvents(); // Vuelve a agregar los eventos de teclado
+            move();
+        }
+
+        let gameOver = false;
+
+
+
+        function gameOverAction() {
+        if (!gameStarted) return; // Agrega esta línea para evitar que se muestre el mensaje de Game Over antes de comenzar el juego
+        if (lives !== Infinity && lives <= 0) { // Modifica la condición para mostrar el mensaje de Game Over
+            showGameOverMessage(); // Muestra el mensaje de Game Over
+            gameStarted = false; // Establece gameStarted en false para detener el movimiento de la pelota y la paleta
+            waitForEnterToContinue(); // Llama a la función waitForEnterToContinue para permitir reiniciar el juego al presionar Enter
+        }
+    }
+
+        function waitForEnterToStart() {
+            ctx.font = "40px Arial";
+            ctx.fillStyle = "#FFFFFF";
+            ctx.textAlign = "center";
+            ctx.fillText("Presiona 'Enter' para empezar", canvas.width / 2, canvas.height / 2);
+
+            function startGameListener(event) {
+                if (event.key === 'Enter') {
+                    // Inicia el juego al presionar Enter
+                    startGame();
+                    // Elimina el evento keydown para evitar múltiples llamadas
+                    document.removeEventListener('keydown', startGameListener);
+                }
+            }
+
+            document.addEventListener('keydown', startGameListener); // Agrega el evento keydown para iniciar el juego
+        }
+
+        let gamePaused = false;
+
+// Dentro de la función showGameOverMessage()
+function showGameOverMessage() {
+    ctx.font = "40px Arial";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.textAlign = "center";
+    ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2);
+    ctx.font = "20px Arial";
+    ctx.fillText("Presiona 'Enter' para jugar de nuevo", canvas.width / 2, canvas.height / 2 + 40);
+    gamePaused = true; // Pausa el juego cuando se muestra el mensaje de Game Over
+}
+
+
+function waitForEnterToContinue() {
+    function continueGameListener(event) {
+        if (event.key === 'Enter') {
+            // Reinicia el juego al presionar Enter
+            gamePaused = false; // Reanuda el juego
+            location.reload();
+            // Elimina el evento keydown para evitar múltiples llamadas
+            document.removeEventListener('keydown', continueGameListener);
+        }
+    }
+
+    document.addEventListener('keydown', continueGameListener);
+}
+        function move() {
+            if (gamePaused) return; // Si el juego está pausado, no realices ningún movimiento
+
+            cleanCanvas();
+            drawBall();
+            drawPaddle();
+            drawBricks();
+            drawMonsters();
+            drawLives();
+            doubleSpeed();
+            drawScore();
+            drawHighScore();
+            updateHighScore();
+            collisionDetection();
+            collisionDetectionWithMonster();
+            moveMonsterRandomly();
+            ballMovement();
+            paddleMovement();
+            gameOverAction();
+            window.requestAnimationFrame(move);
+        }
+
+        waitForEnterToStart();
+        initEvents();
+    </script>
+</body>
+</html>
