@@ -1,6 +1,3 @@
-Para corregir el problema de que el juego inicia con el mensaje de felicitaciones y "win" sin poder hacer nada, necesitamos realizar algunos ajustes en el código. Aquí te proporciono una solución modificada:
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -60,16 +57,13 @@ Para corregir el problema de que el juego inicia con el mensaje de felicitacione
         const brickSound = document.getElementById("brickSound");
         const paddleSound = document.getElementById("paddleSound");
 
-        // Funciones para reproducir sonidos
-        function playBrickSound() {
-            brickSound.currentTime = 0.7; 
-            brickSound.volume = 0.5 ;
-            brickSound.play();
-        }
-
+   
+function playBrickSound() {
+    brickSound.currentTime = 18; // Establece el tiempo de inicio en 3 segundos
+    brickSound.play();
+}
         function playPaddleSound() {
-            paddleSound.currentTime = 0;
-            paddleSound.volume = 0.5 ;
+            paddleSound.currentTime = 0; // Reinicia el sonido si ya está en reproducción
             paddleSound.play();
         }
 
@@ -192,8 +186,6 @@ Para corregir el problema de que el juego inicia con el mensaje de felicitacione
                 paddleWidth,
                 paddleHeight,
                 paddleX,
-
-
                 paddleY,
                 paddleWidth,
                 paddleHeight
@@ -204,32 +196,20 @@ Para corregir el problema de que el juego inicia con el mensaje de felicitacione
             for (let c = 0; c < brickColumnCount; c++) {
                 for (let r = 0; r < brickRowCount; r++) {
                     const currentBrick = bricks[c][r];
-                    if
-
- (currentBrick.status === BRICK_STATUS.DESTROY) continue;
+                    if (currentBrick.status === BRICK_STATUS.DESTROY) continue;
 
                     const clipX = currentBrick.color * 16;
-                    const brickX = currentBrick.x;
-                    const brickY = currentBrick.y;
 
-                    // Dibuja el borde negro del ladrillo
-                    ctx.beginPath();
-                    ctx.rect(brickX, brickY, brickWidth, brickHeight);
-                    ctx.strokeStyle = 'black'; // Establece el color del borde
-                    ctx.stroke(); // Dibuja el borde
-                    ctx.closePath();
-
-                    // Dibuja el contenido del ladrillo
                     ctx.drawImage(
                         $bricks,
                         clipX,
                         0,
                         16,
                         8,
-                        brickX + 1, // Ajusta la posición en X para evitar que el borde cubra el contenido
-                        brickY + 1, // Ajusta la posición en Y para evitar que el borde cubra el contenido
-                        brickWidth - 2, // Reduce el ancho para que el borde se dibuje dentro del ladrillo
-                        brickHeight - 2 // Reduce la altura para que el borde se dibuje dentro del ladrillo
+                        currentBrick.x,
+                        currentBrick.y,
+                        brickWidth,
+                        brickHeight
                     );
                 }
             }
@@ -287,8 +267,7 @@ Para corregir el problema de que el juego inicia con el mensaje de felicitacione
         }
 
         function collisionDetectionWithMonster() {
-            for (let i = 0; i < monsters.length; i++) {
-                const monster = monsters[i];
+            for (const monster of monsters) {
                 if (
                     x > monster.x &&
                     x < monster.x + monster.width &&
@@ -297,42 +276,10 @@ Para corregir el problema de que el juego inicia con el mensaje de felicitacione
                 ) {
                     dy = -dy;
                     dx *= 2;
-
-                    // Agrega un efecto visual de explosión (por ejemplo, dibuja una explosión)
-                    drawExplosion(monster.x + monster.width / 2, monster.y + monster.height / 2);
-
-                    // Elimina el monstruo de la matriz después de dibujar la explosión
-                    monsters.splice(i, 1);
-
-                    // Incrementa el puntaje por destruir un monstruo
-                    score += 50;
-
-                    return;
                 }
             }
         }
 
-        function drawExplosion(x, y) {
-            // Aquí puedes dibujar una explosión en el lienzo
-            // Por ejemplo, podrías usar círculos, líneas, gradientes, etc.
-            // Para simplicidad, aquí solo se dibuja un círculo rojo en el lugar del monstruo
-            ctx.beginPath();
-            ctx.arc(x, y, 20, 0, Math.PI * 2);
-            ctx.fillStyle = 'red';
-            ctx.fill();
-            ctx.closePath();
-        }
-
-        function areAllBricksDestroyed() {
-            for (let c = 0; c < brickColumnCount; c++) {
-                for (let r = 0; r < brickRowCount; r++) {
-                    if (bricks[c][r].status !== BRICK_STATUS.DESTROYED) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
         function collisionDetection() {
             for (let c = 0; c < brickColumnCount; c++) {
                 for (let r = 0; r < brickRowCount; r++) {
@@ -349,17 +296,6 @@ Para corregir el problema de que el juego inicia con el mensaje de felicitacione
                         playBrickSound(); // Reproduce el sonido de ladrillo al colisionar con uno
                     }
                 }
-            }
-
-            // Verifica si todos los ladrillos han sido destruidos y el juego está en curso
-            if (areAllBricksDestroyed()) {
-                // Muestra un mensaje al usuario
-                ctx.font = "40px Arial";
-                ctx.fillStyle = "#FFFFFF";
-                ctx.textAlign = "center";
-                ctx.fillText("¡Felicidades! Has destruido todos los ladrillos.", canvas.width / 2, canvas.height / 2);
-                ctx.fillText("Presiona 'Enter' para jugar de nuevo.", canvas.width / 2, canvas.height / 2 + 40);
-                gameStarted = false; // Pausa el juego
             }
         }
 
@@ -388,8 +324,6 @@ Para corregir el problema de que el juego inicia con el mensaje de felicitacione
             const textWidth = ctx.measureText(highscoreText).width;
             const xPosition = (canvas.width - textWidth) / 2 + 60;
             const yPosition = 20; // Ajusta esta posición vertical según sea necesario
-
-
             ctx.fillText(highscoreText, xPosition, yPosition);
         }
 
@@ -428,7 +362,7 @@ Para corregir el problema de que el juego inicia con el mensaje de felicitacione
                 if (y + dy > canvas.height - ballRadius) { // Si la pelota llega al borde inferior
                     lives--; // Decrementa las vidas
                     if (lives === 0) { // Si no quedan vidas
-                        showGameOverMessage(); 
+                        showGameOverMessage(); // Muestra el mensaje de Game Over
                         return;
                     } else { // Si quedan vidas
                         resetBallAndPaddle(); // Reinicia la posición de la pelota y la paleta
